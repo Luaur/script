@@ -223,10 +223,14 @@ end
 if SellEvent then
     CreateLoop("AutoSell", 30, function()
         SellEvent:FireServer({
+            Uncommon = true,
+            Rare = true,
             Epic = true,
             Legendary = true,
-            Uncommon = true,
-            Rare = true
+            Mythic = true,
+            Godly = true,
+            Secret = true,
+            Divine = true
         })
     end)
 end
