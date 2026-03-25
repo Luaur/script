@@ -1,0 +1,232 @@
+local VirtualUser = game:GetService("VirtualUser")
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+Players.LocalPlayer.Idled:Connect(function()
+    VirtualUser:Button2Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    VirtualUser:Button2Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+end)
+
+local guiParent = pcall(function() return gethui() end) and gethui() or (CoreGui:FindFirstChild("RobloxGui") or Players.LocalPlayer:WaitForChild("PlayerGui"))
+
+if guiParent:FindFirstChild("AutoFarmCustomGUI") then
+    guiParent:FindFirstChild("AutoFarmCustomGUI"):Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "AutoFarmCustomGUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = guiParent
+
+local OpenBtn = Instance.new("TextButton")
+OpenBtn.Size = UDim2.new(0, 100, 0, 40)
+OpenBtn.Position = UDim2.new(0, 20, 0, 20)
+OpenBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+OpenBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+OpenBtn.Text = "Open GUI"
+OpenBtn.Font = Enum.Font.GothamBold
+OpenBtn.TextSize = 14
+OpenBtn.Visible = false
+OpenBtn.Parent = ScreenGui
+
+local OpenCorner = Instance.new("UICorner")
+OpenCorner.CornerRadius = UDim.new(0, 8)
+OpenCorner.Parent = OpenBtn
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 450, 0, 280)
+MainFrame.Position = UDim2.new(0.5, -225, 0.5, -140)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 0
+MainFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 10)
+MainCorner.Parent = MainFrame
+
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 130, 1, 0)
+Sidebar.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = MainFrame
+
+local SidebarCorner = Instance.new("UICorner")
+SidebarCorner.CornerRadius = UDim.new(0, 10)
+SidebarCorner.Parent = Sidebar
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, 0, 0, 50)
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Text = "KemplongXD Hub"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.TextSize = 14
+TitleLabel.Parent = Sidebar
+
+local MinimizeBtn = Instance.new("TextButton")
+MinimizeBtn.Size = UDim2.new(0.8, 0, 0, 30)
+MinimizeBtn.Position = UDim2.new(0.1, 0, 1, -40)
+MinimizeBtn.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+MinimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeBtn.Text = "Minimize"
+MinimizeBtn.Font = Enum.Font.GothamBold
+MinimizeBtn.Parent = Sidebar
+
+local MinCorner = Instance.new("UICorner")
+MinCorner.CornerRadius = UDim.new(0, 6)
+MinCorner.Parent = MinimizeBtn
+
+local ContentArea = Instance.new("Frame")
+ContentArea.Size = UDim2.new(1, -140, 1, -20)
+ContentArea.Position = UDim2.new(0, 140, 0, 10)
+ContentArea.BackgroundTransparency = 1
+ContentArea.Parent = MainFrame
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Padding = UDim.new(0, 15)
+UIListLayout.Parent = ContentArea
+
+local dragging, dragInput, dragStart, startPos
+
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then dragging = false end
+        end)
+    end
+end)
+
+MainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+local Toggles = {
+    AutoFish = false,
+    AutoUpgrade = false,
+    AutoEquip = false,
+    AutoSell = false
+}
+
+local function CreateToggle(name, flagKey)
+    local ToggleContainer = Instance.new("Frame")
+    ToggleContainer.Size = UDim2.new(1, 0, 0, 40)
+    ToggleContainer.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    ToggleContainer.Parent = ContentArea
+    
+    local Corner = Instance.new("UICorner")
+    Corner.CornerRadius = UDim.new(0, 6)
+    Corner.Parent = ToggleContainer
+    
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(0.7, 0, 1, 0)
+    Label.Position = UDim2.new(0, 10, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = name
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Label.Font = Enum.Font.GothamSemibold
+    Label.TextSize = 13
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = ToggleContainer
+    
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(0, 60, 0, 26)
+    Btn.Position = UDim2.new(1, -70, 0.5, -13)
+    Btn.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+    Btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Btn.Text = "OFF"
+    Btn.Font = Enum.Font.GothamBold
+    Btn.Parent = ToggleContainer
+    
+    local BtnCorner = Instance.new("UICorner")
+    BtnCorner.CornerRadius = UDim.new(0, 6)
+    BtnCorner.Parent = Btn
+    
+    Btn.MouseButton1Click:Connect(function()
+        Toggles[flagKey] = not Toggles[flagKey]
+        if Toggles[flagKey] then
+            Btn.BackgroundColor3 = Color3.fromRGB(60, 255, 60)
+            Btn.Text = "ON"
+        else
+            Btn.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
+            Btn.Text = "OFF"
+        end
+    end)
+end
+
+CreateToggle("Auto Catch Fish (1s)", "AutoFish")
+CreateToggle("Auto Upgrade (3s)", "AutoUpgrade")
+CreateToggle("Auto Equip Best (5s)", "AutoEquip")
+CreateToggle("Auto Sell (30s)", "AutoSell")
+
+MinimizeBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+    OpenBtn.Visible = true
+end)
+
+OpenBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = true
+    OpenBtn.Visible = false
+end)
+
+local RemoteHandler = ReplicatedStorage:WaitForChild("RemoteHandler", 10)
+local FishingEvent = RemoteHandler and RemoteHandler:FindFirstChild("Fishing")
+local UpgradeEvent = RemoteHandler and RemoteHandler:FindFirstChild("Upgrade")
+local PlotEvent = RemoteHandler and RemoteHandler:FindFirstChild("Plot")
+local SellEvent = RemoteHandler and RemoteHandler:FindFirstChild("SellMultiple")
+
+local function CreateLoop(toggleKey, delayTime, action)
+    task.spawn(function()
+        while true do
+            if Toggles[toggleKey] then
+                pcall(action)
+                task.wait(delayTime)
+            else
+                task.wait(0.5)
+            end
+        end
+    end)
+end
+
+if FishingEvent then
+    CreateLoop("AutoFish", 1, function()
+        FishingEvent:FireServer("Caught", 1.5976347407871)
+    end)
+end
+
+if UpgradeEvent then
+    CreateLoop("AutoUpgrade", 3, function()
+        UpgradeEvent:FireServer("power10")
+    end)
+end
+
+if PlotEvent then
+    CreateLoop("AutoEquip", 5, function()
+        PlotEvent:FireServer("EquipBest", "String", "String")
+    end)
+end
+
+if SellEvent then
+    CreateLoop("AutoSell", 30, function()
+        SellEvent:FireServer({
+            Epic = true,
+            Legendary = true,
+            Uncommon = true,
+            Rare = true
+        })
+    end)
+end
