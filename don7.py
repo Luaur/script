@@ -15,7 +15,7 @@ import random
 
 TOKEN = ""
 OWNER_ID = 1463723091489194150
-VERSION = "v2.4.5 (Bugfix & Stability Edition)"
+VERSION = "v2.6.0 (Streamlined AFK Edition)"
 BOT_START_TIME = time.time()
 THEME_COLOR = 0x2b2d31
 
@@ -26,33 +26,20 @@ VERSION_FILE = os.path.join(BASE_DIR, "version_record.txt")
 AUTO_FARM_URL = "https://www.roblox.com/share?code=4aa66c9d90ca654b940a598c9ce3e969&type=Server"
 
 LATEST_CHANGES = (
-    "Sistem telah distabilkan ke versi 2.4.5. Berikut perbaikan bug kritis yang dilakukan:\n\n"
-    "1. Perbaikan Bug (!setup): Mengatasi masalah duplikasi pembuatan saluran #system-changelog dan #active-proxies.\n"
-    "2. Perbaikan Bug (!update): Menyempurnakan metode os.execv agar proses muat ulang (restart) kode berjalan mulus tanpa crash di environment Termux.\n"
-    "3. Pemulihan API Proxy: Menambahkan lapisan koneksi ganda pada Proxy Scraper untuk mencegah blokir jaringan (rate limit), memastikan proxy aktif tidak terlewatkan.\n"
-    "4. Kompatibilitas OS Android: Memperluas pemindaian background (ps) agar bot dapat melacak Roblox di semua versi Android tanpa kegagalan membaca proses."
+    "Sistem telah dioptimalkan ke versi 2.6.0. Berikut adalah perubahan utamanya:\n\n"
+    "1. Pemangkasan Fitur Eksternal: Menghapus modul (!profil), (!github), dan (!roblox) secara permanen untuk membebaskan ruang memori (RAM) dan mengurangi beban komputasi bot.\n"
+    "2. Pemeliharaan Auto-Scan: Sistem pemindaian paket Roblox otomatis (Auto-Scan) tetap dipertahankan untuk mendeteksi aplikasi kloning tanpa perlu pengaturan manual.\n"
+    "3. Fokus Kinerja: Skrip kini sepenuhnya difokuskan pada manajemen AFK Farming (Auto-Recovery, Tangkapan Layar In-Memory, dan Proxy Scraper)."
 )
 
-CAT_NAME, CMD_CH, RES_CH, MEDIA_CH, PROXY_CH = "PROFILER SYSTEM", "cmd-profiler", "result-profiler", "media-profiler", "active-proxies"
+CAT_NAME, CMD_CH, PROXY_CH = "PROFILER SYSTEM", "cmd-profiler", "active-proxies"
 LOG_CH = "server-logs"
 CHANGELOG_CH = "system-changelog"
 ROLE_MEM, ROLE_STF = "Member", "Staff"
 
-ROBLOX_URL_PATTERN = re.compile(r'users/(\d+)')
 BATT_LEVEL_PATTERN = re.compile(r'level: (\d+)')
 BATT_TEMP_PATTERN = re.compile(r'temperature: (\d+)')
 BATT_STATUS_PATTERN = re.compile(r'status: (\d+)')
-
-BADGES = {
-    "staff": "Discord Staff", "partner": "Partnered Server Owner", "hypesquad": "HypeSquad Events",
-    "bug_hunter": "Bug Hunter L1", "hypesquad_bravery": "House Bravery", "hypesquad_brilliance": "House Brilliance",
-    "hypesquad_balance": "House Balance", "early_supporter": "Early Supporter", "bug_hunter_level_2": "Bug Hunter L2",
-    "verified_bot_developer": "Verified Bot Dev", "discord_certified_moderator": "Certified Mod", "active_developer": "Active Dev"
-}
-
-def parse_dt(dt_str, fmt="%Y-%m-%dT%H:%M:%S.%fZ"):
-    try: return datetime.strptime(dt_str, fmt).replace(tzinfo=timezone.utc)
-    except: return datetime.now(timezone.utc)
 
 class VerifyView(discord.ui.View):
     def __init__(self):
@@ -97,7 +84,7 @@ class MasterBot(commands.Bot):
                 g.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True, attach_files=True)
             }
             cat = discord.utils.get(g.categories, name=CAT_NAME) or await g.create_category(CAT_NAME, overwrites=ow)
-            for ch in [CMD_CH, RES_CH, MEDIA_CH, PROXY_CH]:
+            for ch in [CMD_CH, PROXY_CH]:
                 if not discord.utils.get(g.text_channels, name=ch, category=cat): await g.create_text_channel(ch, category=cat)
 
         should_send_changelog = False
@@ -162,13 +149,12 @@ class SystemCog(commands.Cog):
         
     async def auto_scan_packages(self):
         try:
-            # Menggunakan kombinasi ps -A dan ps -ef untuk menghindari bug OS Termux
             output = subprocess.run("su -c 'ps -A | grep -i roblox'", shell=True, capture_output=True, text=True).stdout
             if not output.strip():
                 output = subprocess.run("su -c 'ps -ef | grep -i roblox'", shell=True, capture_output=True, text=True).stdout
                 
             packages = [line.split()[-1].strip() for line in output.split('\n') if line.strip() and "com.roblox" in line]
-            packages = list(set(packages)) # Hapus duplikat
+            packages = list(set(packages))
             
             self.roblox_instances.clear()
             self.instances_state.clear()
@@ -252,12 +238,10 @@ class SystemCog(commands.Cog):
             async with sem:
                 start_time = time.time()
                 try:
-                    # Mengecek koneksi murni terlebih dahulu untuk menghindari rate limit API lokasi
                     async with self.session.get("http://httpbin.org/ip", proxy=f"http://{proxy}", timeout=5) as resp:
                         if resp.status == 200:
                             latency = round((time.time() - start_time) * 1000)
                             
-                            # Mengambil detail lokasi jika proxy valid
                             country, isp = "Tidak Diketahui", "Tidak Diketahui"
                             try:
                                 async with self.session.get("http://ip-api.com/json/", proxy=f"http://{proxy}", timeout=3) as geo:
@@ -293,7 +277,9 @@ class SystemCog(commands.Cog):
         if not self.roblox_instances: return 
         
         try:
-            dump_output = subprocess.run("su -c 'ps -ef | grep roblox'", shell=True, capture_output=True, text=True).stdout
+            dump_output = subprocess.run("su -c 'ps -A | grep roblox'", shell=True, capture_output=True, text=True).stdout
+            if not dump_output.strip():
+                dump_output = subprocess.run("su -c 'ps -ef | grep roblox'", shell=True, capture_output=True, text=True).stdout
         except Exception:
             dump_output = ""
 
@@ -323,20 +309,13 @@ class SystemCog(commands.Cog):
                     cmd = f'su -c "am start --user {user_id} -p {pkg} -a android.intent.action.VIEW -d \'{url}\'"'
                     subprocess.run(cmd, shell=True)
                 except Exception as e:
-                    print(f"Gagal memulihkan sesi {name}: {e}")
+                    pass
 
             self.instances_state[name] = is_running
 
     @roblox_monitor_loop.before_loop
     async def before_roblox_monitor(self):
         await self.bot.wait_until_ready()
-
-    async def _fetch(self, url, method="GET", json=None, is_json=True):
-        try:
-            async with self.session.request(method, url, json=json, timeout=10) as r:
-                if r.status in [200, 204]: return await r.json() if is_json else io.BytesIO(await r.read())
-        except: pass
-        return None
 
     def _build_embed(self, title, url, color, fields, desc=None):
         e = discord.Embed(title=title, url=url, color=color, description=desc)
@@ -417,11 +396,8 @@ class SystemCog(commands.Cog):
             ("!monitor", "Memeriksa status proses aplikasi dan kondisi perangkat utama.", False),
             ("!screenshot / !ss", "Meminta tangkapan layar secara langsung dari memori perangkat.", False),
             ("!scan", "Memindai proses sistem untuk melihat apa saja aplikasi Roblox yang terdeteksi otomatis.", False),
-            ("!game [start/stop/restart] [Nama]", "Memaksa perangkat utama untuk menjalankan atau menutup aplikasi. Contoh: `!game restart Clone1`.", False),
+            ("!game [start/stop/restart] [Nama Sesi]", "Memaksa perangkat utama untuk menjalankan atau menutup aplikasi. Contoh: `!game restart Clone1`.", False),
             ("!join [Nama Sesi] [Tautan/Link]", "Membuka tautan server Roblox secara spesifik. Contoh: `!join Ori https...`", False),
-            ("!profil [User ID]", "Menampilkan data lengkap dari profil akun Discord.", False),
-            ("!roblox https://www.merriam-webster.com/dictionary/id", "Mencari data riwayat dan inventaris akun target di platform Roblox.", False),
-            ("!github [Username]", "Membaca riwayat repositori dan data profil akun GitHub.", False),
             ("!announce [Teks]", "Mengirimkan pesan massal ke saluran pengumuman server.", False),
             ("!ping", "Menguji kecepatan respons koneksi jaringan.", False),
             ("!stats", "Menampilkan data penggunaan sumber daya sistem yang dipakai bot.", False),
@@ -438,8 +414,7 @@ class SystemCog(commands.Cog):
     async def scan(self, ctx):
         if ctx.channel.name != CMD_CH: return
         
-        if not self.roblox_instances:
-            await self.auto_scan_packages()
+        await self.auto_scan_packages()
             
         if not self.roblox_instances:
             return await ctx.send("Radar tidak mendeteksi adanya aplikasi kloning atau asli yang berhubungan dengan Roblox di perangkat ini.")
@@ -665,13 +640,11 @@ class SystemCog(commands.Cog):
             new_chans.add(ch.id)
             return ch
 
-        # Setup Kategori 1
         c_info = await _create_cat("Pusat Informasi", ow_info)
         await _create_txt("welcome", c_info)
         ch_rules = await _create_txt("rules", c_info)
         await _create_txt("announcements", c_info)
         
-        # Penyelamatan Saluran Penting
         existing_changelog = discord.utils.get(old_chans, name=CHANGELOG_CH)
         if existing_changelog:
             await existing_changelog.edit(category=c_info, sync_permissions=True)
@@ -679,24 +652,20 @@ class SystemCog(commands.Cog):
         else:
             await _create_txt(CHANGELOG_CH, c_info)
 
-        # Setup Kategori 2
         c_gen = await _create_cat("Komunitas", ow_gen)
         await _create_txt("general-chat", c_gen)
         await _create_txt("media-sharing", c_gen)
         await _create_txt("bot-commands", c_gen)
 
-        # Setup Kategori 3
         c_voice = await _create_cat("Saluran Suara", ow_voi)
         await _create_vc("Join to Create", c_voice)
 
-        # Setup Kategori 4
         c_mod = await _create_cat("Area Moderator", ow_mod)
         await _create_txt("staff-chat", c_mod)
         await _create_txt(LOG_CH, c_mod)
 
-        # Setup Kategori 5
         c_prof = await _create_cat(CAT_NAME, ow_prf)
-        for ch in [CMD_CH, RES_CH, MEDIA_CH]: 
+        for ch in [CMD_CH]: 
             await _create_txt(ch, c_prof)
             
         existing_proxy = discord.utils.get(old_chans, name=PROXY_CH)
@@ -776,203 +745,18 @@ class SystemCog(commands.Cog):
             return await ctx.send("Perintah ditolak. Sertakan file .py yang berisi pembaruan kode.", delete_after=5)
         m = await ctx.send("Menerima berkas pembaruan...")
         try:
-            # Menggunakan __file__ untuk stabilitas di Termux
-            script_path = os.path.abspath(__file__)
+            script_path = os.path.abspath(sys.argv[0]) 
             await ctx.message.attachments[0].save(script_path)
             
             with open(UPDATE_FILE, "w") as f:
                 f.write(catatan if catatan else "AUTO")
                 
-            await m.edit(content="Kode berhasil diperbarui. Memulai ulang bot secara paksa...")
+            await m.edit(content="Kode berhasil diperbarui. Memulai ulang sistem...")
             
-            # Memulai ulang proses Python
             executable = sys.executable or 'python'
-            os.execv(executable, ['python', script_path])
+            os.execv(executable, [executable, script_path])
         except Exception as e: 
             await m.edit(content=f"Terjadi kesalahan saat memproses pembaruan: {e}")
-
-    async def process_media(self, ctx, msg, embed, t_b=None, t_n=None, i_b=None, i_n=None):
-        m_ch, r_ch = discord.utils.get(ctx.guild.text_channels, name=MEDIA_CH), discord.utils.get(ctx.guild.text_channels, name=RES_CH)
-        if not m_ch or not r_ch: return await msg.edit(content="Kesalahan: Saluran hasil pencarian tidak ditemukan.")
-        files = [discord.File(b, filename=n) for b, n in [(t_b, t_n), (i_b, i_n)] if b and n]
-        if files:
-            m_msg = await m_ch.send(content=f"Riwayat Gambar Pencarian: {datetime.now().timestamp()}", files=files)
-            for a in m_msg.attachments:
-                if t_n and a.filename == t_n: embed.set_thumbnail(url=a.url)
-                if i_n and a.filename == i_n: embed.set_image(url=a.url)
-        await r_ch.send(embed=embed)
-        await msg.edit(content=f"Pencarian selesai. Hasil data dapat dilihat di saluran {r_ch.mention}.")
-
-    @commands.command(aliases=['profile'])
-    @commands.is_owner()
-    async def profil(self, ctx, target: str = None):
-        if ctx.channel.name != CMD_CH: return
-        if not target or not target.isdigit(): return await ctx.send("Perintah gagal. Pastikan target menggunakan angka ID pengguna.", delete_after=5)
-        m = await ctx.send("Mengambil data informasi profil Discord...")
-        try: user = await ctx.guild.fetch_member(int(target))
-        except:
-            try: user = await self.bot.fetch_user(int(target))
-            except: return await m.edit(content="Data tidak ditemukan: Pengguna tersebut tidak ada di Discord.")
-
-        c_dt = user.created_at
-        fields = [
-            ("Informasi Utama", f"**Nama Akun:** {user.name}\n**Nama Tampilan:** {user.global_name or 'Kosong'}\n**ID Angka:** {user.id}", True),
-            ("Variabel Akun", f"**Tipe:** {'Bot / Aplikasi' if user.bot else 'Pengguna Manusia'}\n**Warna Tema:** {f'#{user.accent_color.value:06x}'.upper() if user.accent_color else 'Warna Bawaan'}", True),
-            ("Jejak Pengguna", f"Memiliki **{len(user.mutual_guilds)}** kesamaan server Discord" if hasattr(user, 'mutual_guilds') else "Informasi server disembunyikan", True)
-        ]
-
-        if isinstance(user, discord.Member):
-            act = "Kosong"
-            if user.activity:
-                act = user.activity.name
-                if user.activity.type.name in ["playing", "listening", "watching", "streaming"]: 
-                    act = f"{user.activity.type.name.title()} {act}"
-            
-            status_dict = {"online": "Online", "idle": "Tidak di Layar", "dnd": "Mode Senyap"}
-            m_status = status_dict.get(str(user.status), "Offline")
-
-            fields.extend([
-                ("Aktivitas Berjalan", f"**Status:** {m_status}\n**Sedang Melakukan:** {act}", True),
-                ("Data Server Saat Ini", f"**Nama Panggilan:** {user.nick or 'Tidak Diubah'}\n**Peran Tertinggi:** {user.top_role.name if user.top_role else 'Tanpa Peran Khusus'}", True),
-                ("Riwayat Gabung", f"**Tingkat Booster:** {discord.utils.format_dt(user.premium_since, 'R') if user.premium_since else 'Tidak Berlangganan'}\n**Waktu Masuk Server:** {discord.utils.format_dt(user.joined_at, 'F') if user.joined_at else 'Data tidak valid'}", False)
-            ])
-
-        bgs = [BADGES.get(f.name, f.name.replace('_', ' ').title()) for f in user.public_flags.all()]
-        fields.extend([
-            ("Label Penghargaan", ", ".join(bgs) if bgs else "Tidak memiliki lencana khusus", False), 
-            ("Waktu Pembuatan Akun", f"{discord.utils.format_dt(c_dt, 'F')} (Akun aktif sejak {(datetime.now(timezone.utc) - c_dt).days:,} hari yang lalu)", False)
-        ])
-        
-        t_b = await self._fetch(user.avatar.with_size(1024).url, is_json=False) if user.avatar else None
-        i_b = await self._fetch(user.banner.with_size(1024).url, is_json=False) if user.banner else None
-        t_n = f"av_{user.id}.{'gif' if user.avatar and user.avatar.is_animated() else 'png'}" if t_b else None
-        i_n = f"bn_{user.id}.{'gif' if user.banner and user.banner.is_animated() else 'png'}" if i_b else None
-
-        await self.process_media(ctx, m, self._build_embed("Informasi Akun Discord", None, THEME_COLOR, fields), t_b, t_n, i_b, i_n)
-
-    @commands.command()
-    @commands.is_owner()
-    async def github(self, ctx, target: str = None):
-        if ctx.channel.name != CMD_CH: return
-        if not target: return await ctx.send("Pencarian dibatalkan. Nama pengguna GitHub wajib dilampirkan.", delete_after=5)
-        m = await ctx.send("Memulai proses penarikan data dari GitHub...")
-        
-        reqs = {
-            "u": f"https://api.github.com/users/{target}",
-            "r": f"https://api.github.com/users/{target}/repos?per_page=100",
-            "o": f"https://api.github.com/users/{target}/orgs"
-        }
-        res = dict(zip(reqs.keys(), await asyncio.gather(*(self._fetch(url) for url in reqs.values()))))
-        if not res["u"]: return await m.edit(content="Respon jaringan: Nama pengguna tersebut tidak ditemukan.")
-
-        u, r, o = res["u"], res["r"] or [], res["o"] or []
-        orgs = ", ".join([x.get("login") for x in o]) or "Tidak memiliki ikatan grup secara publik"
-        c_dt = parse_dt(u['created_at'], "%Y-%m-%dT%H:%M:%SZ")
-
-        fields = [
-            ("Informasi Dasar", f"**Nama Akun:** {u.get('login')}\n**Nama Asli:** {u.get('name') or 'Tidak terdaftar'}\n**ID Angka:** {u.get('id')}", True),
-            ("Area Sosialisasi", f"**Perusahaan Terkait:** {u.get('company') or 'Pekerja Independen'}\n**Lokasi:** {u.get('location') or 'Data disembunyikan'}\n**Tautan Sosial X:** {u.get('twitter_username') or 'Kosong'}", True),
-            ("Riwayat Pekerjaan (Repo)", f"**Proyek Publik:** {u.get('public_repos')} Pustaka\n**Gists:** {u.get('public_gists')}\n**Bintang Diperoleh:** {sum(x.get('stargazers_count', 0) for x in r)}\n**Salinan (Forks):** {sum(x.get('forks_count', 0) for x in r)}", True),
-            ("Jaringan Pertemanan", f"**Pengikut:** {u.get('followers')} Orang | **Mengikuti:** {u.get('following')} Orang", True), 
-            ("Daftar Organisasi", orgs, False)
-        ]
-        if u.get('bio'): fields.append(("Catatan Biodata", u.get('bio'), False))
-        fields.append(("Waktu Pendaftaran Akun", f"{discord.utils.format_dt(c_dt, 'F')} (Telah aktif sejak {(datetime.now(timezone.utc) - c_dt).days:,} hari terakhir)", False))
-        
-        if r: 
-            top_repos = "\n".join([f"Nilai: {x.get('stargazers_count')} - [{x.get('name')}]({x.get('html_url')})" for x in sorted(r, key=lambda i: i.get('stargazers_count', 0), reverse=True)[:3]])
-            fields.append(("Tiga Pustaka Paling Banyak Mendapat Bintang", top_repos or "Belum ada repositori yang menerima bintang", False))
-
-        t_b = await self._fetch(u['avatar_url'], is_json=False) if u.get('avatar_url') else None
-        await self.process_media(ctx, m, self._build_embed("Data Profil Akun GitHub", u.get('html_url'), THEME_COLOR, fields), t_b, f"gh_{u.get('login')}.png" if t_b else None, None, None)
-
-    @commands.command()
-    @commands.is_owner()
-    async def roblox(self, ctx, target: str = None):
-        if ctx.channel.name != CMD_CH: return
-        if not target: return await ctx.send("Kesalahan argumen. Target Tautan atau ID Angka Roblox harus disertakan.", delete_after=5)
-        
-        match = ROBLOX_URL_PATTERN.search(target)
-        tid = match.group(1) if match else target
-        if not tid.isdigit(): return await ctx.send("Kesalahan pencarian. Pastikan Anda memasukkan nomor ID pengguna yang valid.", delete_after=5)
-        
-        m = await ctx.send("Memulai proses pengumpulan data di platform Roblox...")
-        u_data = await self._fetch(f"https://users.roblox.com/v1/users/{tid}")
-        if not u_data: return await m.edit(content="Respon kesalahan: Data akun Roblox target telah dihapus atau dikunci.")
-
-        apis = {
-            "p": ("POST", "https://presence.roblox.com/v1/presence/users", {"userIds": [int(tid)]}),
-            "f": ("GET", f"https://friends.roblox.com/v1/users/{tid}/friends/count", None),
-            "fol": ("GET", f"https://friends.roblox.com/v1/users/{tid}/followers/count", None),
-            "fng": ("GET", f"https://friends.roblox.com/v1/users/{tid}/followings/count", None),
-            "g": ("GET", f"https://groups.roblox.com/v1/users/{tid}/groups/roles", None),
-            "pg": ("GET", f"https://groups.roblox.com/v1/users/{tid}/groups/primary/role", None),
-            "h": ("GET", f"https://users.roblox.com/v1/users/{tid}/username-history?limit=10&sortOrder=Desc", None),
-            "prem": ("GET", f"https://premiumfeatures.roblox.com/v1/users/{tid}/validate-membership", None),
-            "bdg": ("GET", f"https://accountinformation.roblox.com/v1/users/{tid}/roblox-badges", None),
-            "inv": ("GET", f"https://inventory.roblox.com/v1/users/{tid}/can-view-inventory", None),
-            "av": ("GET", f"https://avatar.roblox.com/v1/users/{tid}/avatar", None),
-            "gm": ("GET", f"https://games.roblox.com/v2/users/{tid}/games?limit=50", None),
-            "soc": ("GET", f"https://users.roblox.com/v1/users/{tid}/social-links", None),
-            "col": ("GET", f"https://inventory.roblox.com/v1/users/{tid}/assets/collectibles?limit=100", None),
-            "fav": ("GET", f"https://games.roblox.com/v2/users/{tid}/favorite/games?limit=50", None),
-            "out": ("GET", f"https://avatar.roblox.com/v1/users/{tid}/outfits?page=1&itemsPerPage=10", None),
-            "gb": ("GET", f"https://badges.roblox.com/v1/users/{tid}/badges?limit=100&sortOrder=Desc", None),
-            "th": ("GET", f"https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds={tid}&size=420x420&format=Png", None),
-            "tf": ("GET", f"https://thumbnails.roblox.com/v1/users/avatar?userIds={tid}&size=720x720&format=Png", None)
-        }
-        r = dict(zip(apis.keys(), await asyncio.gather(*(self._fetch(url, meth, j) for meth, url, j in apis.values()))))
-
-        p_txt, l_loc, l_on = "Offline", "Posisi disamarkan", "Catatan aktivitas tidak tersedia"
-        if r["p"] and r["p"].get("userPresences"):
-            pr = r["p"]["userPresences"][0]
-            p_typ = pr.get("userPresenceType", 0)
-            p_txt = {0:"Offline", 1:"Sedang Online", 2:"Membuka Aplikasi Permainan", 3:"Membuka Roblox Studio"}.get(p_typ, "Offline")
-            l_loc = pr.get("lastLocation", "Lokasi disembunyikan")
-            if pr.get("lastOnline"): l_on = discord.utils.format_dt(parse_dt(pr["lastOnline"][:19], "%Y-%m-%dT%H:%M:%S"), 'R')
-
-        pg_str = f"{r['pg']['group'].get('name', 'Tanpa Nama')} (Sebagai: {r['pg'].get('role', {}).get('name', 'N/A')})" if r["pg"] and "group" in r["pg"] else "Aktivitas grup utama dibatalkan"
-        soc_str = "\n".join([f"**{s['type']}:** {s.get('title', s.get('url'))}" for s in r["soc"]["data"]]) if r["soc"] and r["soc"].get("data") else "Tautan profil publik kosong"
-        b_names = [b["name"] for b in r["bdg"]] if r["bdg"] else []
-        col_data = r["col"].get("data", []) if r["col"] else []
-        
-        eq_str, t_rbx, av_typ, av_scl, em_cnt = "Menggunakan pakaian dasar", 0, "Bentukan Statis R6/R15", "Tinggi: 1 | Lebar: 1 | Kepala: 1", 0
-        if r["av"]:
-            em_cnt = len(r["av"].get("emotes", []))
-            av_typ = r["av"].get("playerAvatarType", "Kerangka Dasar")
-            sc = r["av"].get("scales", {})
-            av_scl = f"Proporsi Tinggi: {sc.get('height', 1)} | Proporsi Lebar: {sc.get('width', 1)} | Ukuran Kepala: {sc.get('head', 1)}"
-            assets = r["av"].get("assets", [])
-            if assets:
-                ga = {}
-                for a in assets: ga.setdefault(a.get("assetType", {}).get("name", "Unknown"), []).append(a.get("name", "Unknown"))
-                eq_str = "\n".join([f"**{t}:** {', '.join(ns)}" for t, ns in ga.items()])[:1020]
-                c_data = await self._fetch("https://catalog.roblox.com/v1/catalog/items/details", "POST", {"items": [{"itemType": "Asset", "id": a["id"]} for a in assets]})
-                t_rbx = sum((i.get("price") or 0) for i in c_data.get("data", [])) if c_data else 0
-
-        c_dt = parse_dt(u_data['created'])
-        fields = [
-            ("Laporan Identitas Akun", f"**Nama Terdaftar:** {u_data.get('name')}\n**Nama Tampilan:** {u_data.get('displayName')}\n**ID Angka:** {tid}\n**Status Lencana (Centang):** {'Sah' if u_data.get('hasVerifiedBadge') else 'Tidak Memiliki Lencana'}", True),
-            ("Indikator Aktivitas Terkini", f"**Status Akun:** {p_txt}\n**Terakhir Dilihat Di:** {l_loc[:20]}\n**Jejak Waktu:** {l_on}", True),
-            ("Keamanan dan Batasan", f"**Langganan Premium:** {'Menyala' if r['prem'] else 'Mati'}\n**Keadaan Akun:** {'Terblokir (Banned)' if u_data.get('isBanned') else 'Catatan Bersih'}\n**Daftar Penyimpanan Barang:** {'Dapat Dilihat Umum' if r['inv'] and r['inv'].get('canView') else 'Terkunci'}", True),
-            ("Informasi Aset dan Kekayaan", f"**Total Estimasi Barang:** {sum(i.get('recentAveragePrice', 0) for i in col_data):,} R$\n**Barang Edisi Langka:** {len(col_data)} Tersimpan\n**Harga Kostum Saat Ini:** {t_rbx:,} R$\n**Kostum Tersimpan:** {r['out'].get('total', 0) if r['out'] else 0} Setelan", True),
-            ("Proporsi Visual Karakter", f"**Kerangka Dasar:** {av_typ}\n**Dimensi Tubuh:** {av_scl}\n**Total Gaya Emosi:** {em_cnt} Dipasang", True),
-            ("Relasi Lingkaran Pertemanan", f"**Jumlah Teman:** {r['f'].get('count', 0) if r['f'] else 0:,} Orang\n**Jumlah Pengikut:** {r['fol'].get('count', 0) if r['fol'] else 0:,} Orang\n**Akun yang Diikuti:** {r['fng'].get('count', 0) if r['fng'] else 0:,} Akun", True),
-            ("Pencapaian Permainan", f"**Penghargaan Resmi Platform:** {len(b_names)} Berkas\n**Penghargaan Dalam Game:** {len(r['gb'].get('data', [])) if r['gb'] else 0}{'+' if r['gb'] and r['gb'].get('nextPageCursor') else ''} Terselesaikan", True),
-            ("Skala Interaksi Permainan", f"**Jumlah Grup Diikuti:** {len(r['g'].get('data', [])) if r['g'] else 0:,} Faksi\n**Pembuatan Permainan Sendiri:** {len(r['gm'].get('data', [])) if r['gm'] else 0:,} Game\n**Permainan yang Disukai:** {len(r['fav'].get('data', [])) if r['fav'] else 0:,} Judul", True),
-            ("Grup Prioritas Akun", pg_str, True), ("Tautan Platform Luar", soc_str[:1024], False), ("Daftar Item Pakaian yang Dipakai", eq_str, False),
-            ("Catatan Perolehan Lencana Resmi", ", ".join(b_names)[:1024] or "Belum ada lencana dari pihak pusat", False), ("Catatan Perubahan Nama Masa Lalu", ", ".join([n["name"] for n in r["h"].get("data", [])])[:1024] if r["h"] and r["h"].get("data") else "Tidak ada perubahan nama sejak pendaftaran", False)
-        ]
-        if u_data.get('description'): fields.append(("Catatan Profil Singkat", u_data.get('description')[:1024], False))
-        fields.append(("Jejak Pendaftaran Awal", f"{discord.utils.format_dt(c_dt, 'F')} (Rentang waktu akun ini beroperasi adalah {(datetime.now(timezone.utc) - c_dt).days:,} hari)", False))
-
-        t_b, t_n, i_b, i_n = None, None, None, None
-        if r["th"] and r["th"].get("data"):
-            t_b, t_n = await self._fetch(r["th"]["data"][0]["imageUrl"], is_json=False), f"rh_{tid}.png"
-        if r["tf"] and r["tf"].get("data"):
-            i_b, i_n = await self._fetch(r["tf"]["data"][0]["imageUrl"], is_json=False), f"rf_{tid}.png"
-
-        await self.process_media(ctx, m, self._build_embed("Laporan Data Akun Roblox", f"https://www.roblox.com/users/{tid}/profile", THEME_COLOR, fields), t_b, t_n, i_b, i_n)
 
 if __name__ == "__main__":
     bot = MasterBot()
